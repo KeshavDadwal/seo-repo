@@ -157,10 +157,17 @@ class SEORequestHandler(BaseHTTPRequestHandler):
                 self.end_headers()
                 self.wfile.write(b'{"error": "domain required"}')
                 return
+            
+            query = urllib.parse.parse_qs(parsed_path.query)
+            max_pages_str = query.get('max_pages', ['50'])[0]
+            try:
+                max_pages = int(max_pages_str)
+            except ValueError:
+                max_pages = 50
                 
             job_id = str(time.time()).replace('.', '')
             
-            thread = threading.Thread(target=run_analysis_job, args=(job_id, domain))
+            thread = threading.Thread(target=run_analysis_job, args=(job_id, domain, max_pages))
             thread.daemon = True
             thread.start()
             
