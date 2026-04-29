@@ -157,6 +157,7 @@ td.url-cell a{color:var(--blue);}
   .search-input{min-width:100%;}
 }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -203,7 +204,10 @@ td.url-cell a{color:var(--blue);}
 
 <!-- SUMMARY -->
 <div id="summary-section">
-  <div class="summary-title">📊 Summary</div>
+  <div class="summary-title" style="display:flex; justify-content:space-between; align-items:center;">
+    <span>📊 Summary</span>
+    <button class="btn btn-outline" style="padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:6px;" onclick="downloadSummaryExcel()">📥 Download Excel</button>
+  </div>
   <div class="cards-row" id="summary-cards"></div>
   <div class="filter-row">
     <button class="filter-btn active" onclick="setFilter('all',this)">All pages</button>
@@ -697,6 +701,36 @@ document.addEventListener('keydown', e => {
     startAnalysis();
   }
 });
+
+function downloadSummaryExcel() {
+  if (!allResults || allResults.length === 0) return;
+  if (typeof XLSX === 'undefined') {
+    alert("Excel export library is still loading. Please try again in a moment.");
+    return;
+  }
+  
+  const headers = ['URL', 'Score', 'Status', 'Title', 'Meta Description', 'H1 Count', 'Images', 'Missing Alt', 'Load Time (ms)', 'Word Count', 'Issues', 'Warnings'];
+  
+  const rows = allResults.map(r => [
+    r.url || '',
+    r.score || 0,
+    r.status_code || '',
+    r.title || '',
+    r.meta_description || '',
+    r.headings?.h1?.length || 0,
+    r.image_stats?.total || 0,
+    r.image_stats?.missing_alt || 0,
+    r.load_time_ms || 0,
+    r.word_count || 0,
+    r.issues?.length || 0,
+    r.warnings?.length || 0
+  ]);
+  
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "SEO Summary");
+  XLSX.writeFile(workbook, "seo_summary.xlsx");
+}
 </script>
 </body>
 </html>
