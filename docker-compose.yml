@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  go-crawler:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - MAX_WORKERS=20
+      - REQUEST_TIMEOUT=15s
+      - POLITE_DELAY=100ms
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/status?job_id=test"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  python-ui:
+    build: ./frontend
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - GO_BACKEND_URL=http://go-crawler:8080
+    depends_on:
+      - go-crawler
+    restart: unless-stopped
