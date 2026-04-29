@@ -18,22 +18,15 @@ run-go:
 	@echo "🚀 Starting Go crawler on :$(GO_PORT)..."
 	cd $(GO_DIR) && go run ./cmd/server
 
-# Run Python frontend only (needs Go running)
-run-py:
-	@echo "🐍 Starting Python UI on :$(PY_PORT)..."
-	cd $(PY_DIR) && python3 seo_analyser.py
-
 # Run both (development)
 dev:
-	@echo "🚀 Starting both services..."
-	@make run-go & make run-py
+	@echo "🚀 Starting go service..."
+	@make run-go
 
 # Install dependencies
 deps:
 	@echo "📦 Installing Go dependencies..."
 	cd $(GO_DIR) && go mod tidy
-	@echo "📦 Python dependencies..."
-	cd $(PY_DIR) && pip install -r requirements.txt
 
 # Clean build artifacts
 clean:
@@ -43,7 +36,3 @@ clean:
 # Run tests
 test:
 	cd $(GO_DIR) && go test ./...
-
-# Benchmark Python vs Go
-benchmark:
-	@./scripts/benchmark.sh

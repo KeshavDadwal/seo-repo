@@ -16,14 +16,3 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  python-ui:
-    build: ./frontend
-    ports:
-      - "5000:5000"
-    environment:
-      - PORT=5000
-      - GO_BACKEND_URL=http://go-crawler:8080
-    depends_on:
-      - go-crawler
-    restart: unless-stopped
