@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SEO Analyzer</title>
+    <style>
+        :root {
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #0f172a;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --error: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary);
+            margin-bottom: 0.5rem;
+        }
+
+        p {
+            color: var(--text-muted);
+        }
+
+        .card {
+            background-color: var(--card);
+            border-radius: 1rem;
+            padding: 2rem;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            margin-bottom: 2rem;
+        }
+
+        .form-group {
+            display: flex;
+            gap: 1rem;
+        }
+
+        input[type="url"] {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input[type="url"]:focus {
+            border-color: var(--primary);
+        }
+
+        button {
+            padding: 0.75rem 1.5rem;
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--primary-hover);
+        }
+
+        button:disabled {
+            background-color: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .status-section {
+            display: none;
+            margin-top: 2rem;
+            text-align: center;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 0.5rem;
+            background-color: var(--border);
+            border-radius: 9999px;
+            overflow: hidden;
+            margin-top: 1rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background-color: var(--primary);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .results-section {
+            display: none;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        th, td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.875rem;
+            letter-spacing: 0.05em;
+        }
+
+        .error-msg {
+            color: var(--error);
+            margin-top: 1rem;
+            display: none;
+        }
+        
+        .badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+        
+        .badge.success { background-color: #d1fae5; color: #065f46; }
+        .badge.warning { background-color: #fef3c7; color: #92400e; }
+        .badge.error { background-color: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>SEO Analyzer</h1>
+            <p>Enter a domain to analyze its SEO performance</p>
+        </header>
+
+        <div class="card">
+            <form id="analyzeForm" class="form-group">
+                <input type="url" id="domain" placeholder="https://example.com" required>
+                <button type="submit" id="submitBtn">Analyze</button>
+            </form>
+            <div id="errorMsg" class="error-msg"></div>
+
+            <div id="statusSection" class="status-section">
+                <h3 id="statusText">Starting analysis...</h3>
+                <p id="progressText">0 / 0 pages analyzed</p>
+                <div class="progress-bar">
+                    <div id="progressFill" class="progress-fill"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="resultsSection" class="results-section">
+            <div class="card">
+                <h2>Analysis Results</h2>
+                <div style="overflow-x: auto;">
+                    <table id="resultsTable">
+                        <thead>
+                            <tr>
+                                <th>URL</th>
+                                <th>Title</th>
+                                <th>Status</th>
+                                <th>Issues</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('analyzeForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const domainInput = document.getElementById('domain').value;
+            const submitBtn = document.getElementById('submitBtn');
+            const statusSection = document.getElementById('statusSection');
+            const resultsSection = document.getElementById('resultsSection');
+            const errorMsg = document.getElementById('errorMsg');
+            
+            submitBtn.disabled = true;
+            statusSection.style.display = 'block';
+            resultsSection.style.display = 'none';
+            errorMsg.style.display = 'none';
+            
+            try {
+                const res = await fetch('/api/analyse', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain: domainInput })
+                });
+                
+                if (!res.ok) throw new Error('Failed to start analysis');
+                
+                const data = await res.json();
+                pollStatus(data.job_id);
+            } catch (err) {
+                showError(err.message);
+                submitBtn.disabled = false;
+                statusSection.style.display = 'none';
+            }
+        });
+
+        async function pollStatus(jobId) {
+            try {
+                const res = await fetch(`/api/status?job_id=${jobId}`);
+                if (!res.ok) throw new Error('Failed to check status');
+                
+                const data = await res.json();
+                
+                const statusText = document.getElementById('statusText');
+                const progressText = document.getElementById('progressText');
+                const progressFill = document.getElementById('progressFill');
+                
+                statusText.textContent = `Status: ${data.status}`;
+                progressText.textContent = `${data.progress || 0} / ${data.total || 0} pages analyzed`;
+                
+                if (data.total > 0) {
+                    const percentage = (data.progress / data.total) * 100;
+                    progressFill.style.width = `${percentage}%`;
+                }
+                
+                if (data.status === 'complete') {
+                    showResults(data.results || []);
+                    document.getElementById('submitBtn').disabled = false;
+                } else if (data.status === 'error') {
+                    showError(`Analysis failed: ${data.error}`);
+                    document.getElementById('submitBtn').disabled = false;
+                } else {
+                    setTimeout(() => pollStatus(jobId), 1000);
+                }
+            } catch (err) {
+                showError(err.message);
+                document.getElementById('submitBtn').disabled = false;
+                document.getElementById('statusSection').style.display = 'none';
+            }
+        }
+        
+        function showResults(results) {
+            const tbody = document.querySelector('#resultsTable tbody');
+            tbody.innerHTML = '';
+            
+            if (results.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No results found.</td></tr>';
+            } else {
+                results.forEach(result => {
+                    const tr = document.createElement('tr');
+                    
+                    let statusBadge = 'success';
+                    let issuesText = 'None';
+                    
+                    if (result.error) {
+                        statusBadge = 'error';
+                        issuesText = result.error;
+                    } else if (!result.title || result.h1_count === 0) {
+                        statusBadge = 'warning';
+                        issuesText = 'Missing Title/H1';
+                    }
+                    
+                    tr.innerHTML = `
+                        <td><a href="${result.url}" target="_blank" style="color: var(--primary); text-decoration: none;">${result.url.substring(0, 50)}${result.url.length > 50 ? '...' : ''}</a></td>
+                        <td>${result.title || '-'}</td>
+                        <td><span class="badge ${statusBadge}">${result.error ? 'Error' : 'OK'}</span></td>
+                        <td>${issuesText}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+            
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+        
+        function showError(msg) {
+            const errorEl = document.getElementById('errorMsg');
+            errorEl.textContent = msg;
+            errorEl.style.display = 'block';
+        }
+    </script>
+</body>
+</html>
