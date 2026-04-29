@@ -102,6 +102,26 @@ class SEORequestHandler(BaseHTTPRequestHandler):
                 self.wfile.write(b'{"error": "job not found"}')
             return
 
+        elif parsed_path.path == '/api/results':
+            query = urllib.parse.parse_qs(parsed_path.query)
+            job_id = query.get('job_id', [''])[0]
+            
+            with JOB_LOCK:
+                job = JOBS.get(job_id)
+                
+            if job and "results" in job:
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                # Return just the results array wrapped in an object, as the UI expects data.results
+                self.wfile.write(json.dumps({"results": job["results"]}).encode())
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b'{"error": "results not found"}')
+            return
+
+
         elif parsed_path.path.startswith('/static/'):
             filepath = parsed_path.path.lstrip('/')
             try:
