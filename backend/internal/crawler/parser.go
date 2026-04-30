@@ -116,9 +116,23 @@ func (p *Parser) parseHeadings(doc *goquery.Document, r *models.SEOResult) {
 		var headings []string
 		doc.Find(tag).Each(func(idx int, s *goquery.Selection) {
 			text := strings.Join(strings.Fields(s.Text()), " ")
-			if text != "" {
-				headings = append(headings, text)
+			
+			// If text is empty, check if there's an image with alt text (e.g., logo in H1)
+			if text == "" {
+				s.Find("img").Each(func(_ int, img *goquery.Selection) {
+					if alt, exists := img.Attr("alt"); exists {
+						text += " " + alt
+					}
+				})
+				text = strings.Join(strings.Fields(text), " ")
 			}
+
+			// Even if it's completely empty, we record that the tag exists
+			if text == "" {
+				text = "[Empty Heading]"
+			}
+
+			headings = append(headings, text)
 		})
 		r.Headings[tag] = headings
 	}
