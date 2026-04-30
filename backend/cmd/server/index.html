@@ -846,9 +846,17 @@
   <div id="summary-section">
     <div class="summary-title" style="display:flex; justify-content:space-between; align-items:center;">
       <span>📊 Summary</span>
-      <button class="btn btn-outline"
-        style="padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:6px;"
-        onclick="downloadSummaryExcel()">📥 Download Excel</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-outline"
+          style="padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:6px;"
+          onclick="downloadSummaryJSON()">📄 JSON</button>
+        <button class="btn btn-outline"
+          style="padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:6px;"
+          onclick="downloadSummaryCSV()">📊 CSV</button>
+        <button class="btn btn-outline"
+          style="padding:6px 12px; font-size:12px; display:flex; align-items:center; gap:6px;"
+          onclick="downloadSummaryExcel()">📥 Excel</button>
+      </div>
     </div>
     <div class="cards-row" id="summary-cards"></div>
     <div class="filter-row">
@@ -1354,6 +1362,58 @@
         startAnalysis();
       }
     });
+
+    function downloadBlob(content, filename, contentType) {
+      const blob = new Blob([content], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 0);
+    }
+
+    function downloadSummaryJSON() {
+      if (!allResults || allResults.length === 0) return;
+      const json = JSON.stringify(allResults, null, 2);
+      downloadBlob(json, `seo_audit_${new Date().toISOString().slice(0, 10)}.json`, 'application/json');
+    }
+
+    function downloadSummaryCSV() {
+      if (!allResults || allResults.length === 0) return;
+      const headers = [
+        "URL", "Score", "Status", "Title", "Title Length", "Meta Description",
+        "Desc Length", "H1 Count", "H2 Count", "Images", "Missing Alt",
+        "Load Time (ms)", "Word Count", "Issues", "Warnings", "HTTPS", "Canonical"
+      ];
+      
+      const rows = allResults.map(r => [
+        `"${(r.url || "").replace(/"/g, '""')}"`,
+        r.score || 0,
+        r.status_code || "",
+        `"${(r.title || "").replace(/"/g, '""')}"`,
+        r.title_length || 0,
+        `"${(r.meta_description || "").replace(/"/g, '""')}"`,
+        r.meta_description_length || 0,
+        r.headings?.h1?.length || 0,
+        r.headings?.h2?.length || 0,
+        r.image_stats?.total || 0,
+        r.image_stats?.missing_alt || 0,
+        r.load_time_ms || 0,
+        r.word_count || 0,
+        r.issues?.length || 0,
+        r.warnings?.length || 0,
+        r.has_https ? "Yes" : "No",
+        `"${(r.canonical || "").replace(/"/g, '""')}"`
+      ]);
+
+      const csvContent = [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+      downloadBlob(csvContent, `seo_audit_${new Date().toISOString().slice(0, 10)}.csv`, 'text/csv;charset=utf-8;');
+    }
 
     function downloadSummaryExcel() {
       if (!allResults || allResults.length === 0) return;
