@@ -99,11 +99,14 @@ func (s *Server) runAnalysis(job *models.Job, maxPages int) {
 	sf := sitemap.NewFetcher()
 	urls, sitemapURL, err := sf.Discover(job.Domain)
 	if err != nil {
+		s.jobsMu.Lock()
 		job.Status = "error"
 		job.Error = err.Error()
+		s.jobsMu.Unlock()
 		return
 	}
 
+	s.jobsMu.Lock()
 	job.SitemapURL = sitemapURL
 	if len(urls) == 0 {
 		urls = []string{"https://" + job.Domain}
@@ -114,6 +117,7 @@ func (s *Server) runAnalysis(job *models.Job, maxPages int) {
 	job.URLs = urls
 	job.Total = len(urls)
 	job.Status = "analysing"
+	s.jobsMu.Unlock()
 
 	cfg := s.crawlerCfg
 	cfg.MaxPages = maxPages
@@ -126,39 +130,47 @@ func (s *Server) runAnalysis(job *models.Job, maxPages int) {
 		for {
 			select {
 			case <-ticker.C:
+				s.jobsMu.Lock()
 				job.Progress = int(c.Progress())
+				s.jobsMu.Unlock()
 			case <-done:
 				return
 			}
 		}
 	}()
 
-	results := c.AnalyzePages(context.Background(), urls)
-	close(done)
+	stream := c.AnalyzePagesStream(context.Background(), urls)
 
-	for i := range results {
-		scorer.CalculateScore(&results[i])
+	for res := range stream {
+		scorer.CalculateScore(&res)
+
+		s.jobsMu.Lock()
+		job.Results = append(job.Results, res)
+		s.jobsMu.Unlock()
 	}
 
-	job.Results = results
-	job.Progress = len(results)
+	close(done)
+
+	s.jobsMu.Lock()
+	job.Progress = len(job.Results)
 	job.Status = "complete"
 	now := time.Now()
 	job.CompletedAt = &now
+	s.jobsMu.Unlock()
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	jobID := r.URL.Query().Get("job_id")
 	s.jobsMu.RLock()
 	job, exists := s.jobs[jobID]
-	s.jobsMu.RUnlock()
 
 	if !exists {
+		s.jobsMu.RUnlock()
 		http.Error(w, `{"error":"job not found"}`, http.StatusNotFound)
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	response := map[string]interface{}{
 		"job_id":        job.ID,
 		"status":        job.Status,
 		"domain":        job.Domain,
@@ -167,23 +179,33 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		"sitemap_url":   job.SitemapURL,
 		"error":         job.Error,
 		"results_count": len(job.Results),
-	})
+	}
+	s.jobsMu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }
 
 func (s *Server) handleResults(w http.ResponseWriter, r *http.Request) {
 	jobID := r.URL.Query().Get("job_id")
 	s.jobsMu.RLock()
 	job, exists := s.jobs[jobID]
-	s.jobsMu.RUnlock()
 
 	if !exists {
+		s.jobsMu.RUnlock()
 		http.Error(w, `{"error":"job not found"}`, http.StatusNotFound)
 		return
 	}
 
+	resultsCopy := make([]models.SEOResult, len(job.Results))
+	copy(resultsCopy, job.Results)
+	status := job.Status
+	s.jobsMu.RUnlock()
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"results": job.Results,
-		"status":  job.Status,
+		"results": resultsCopy,
+		"status":  status,
 	})
 }
 

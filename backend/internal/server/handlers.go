@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"seo-crawler/internal/crawler"
 	"seo-crawler/internal/models"
+	"seo-crawler/internal/scorer"
 	"seo-crawler/internal/sitemap"
 	"sync"
 	"time"
@@ -168,4 +169,104 @@ func (s *Server) handleResults(w http.ResponseWriter, r *http.Request) {
 		"results": job.Results,
 		"status":  job.Status,
 	})
+}
+
+// handleStream is the NEW SSE endpoint for real-time results
+func (s *Server) handleStream(w http.ResponseWriter, r *http.Request) {
+	domain := r.URL.Query().Get("domain")
+	if domain == "" {
+		http.Error(w, `{"error":"domain required"}`, http.StatusBadRequest)
+		return
+	}
+
+	maxPages := 50
+	if mp := r.URL.Query().Get("max_pages"); mp != "" {
+		fmt.Sscanf(mp, "%d", &maxPages)
+	}
+
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	// Send initial event
+	sendSSE(w, flusher, "start", map[string]interface{}{
+		"domain":    domain,
+		"max_pages": maxPages,
+		"message":   "Starting analysis...",
+	})
+
+	// Discover sitemap
+	sf := sitemap.NewFetcher()
+	urls, sitemapURL, err := sf.Discover(domain)
+	if err != nil {
+		sendSSE(w, flusher, "error", map[string]string{"error": err.Error()})
+		return
+	}
+
+	sendSSE(w, flusher, "sitemap", map[string]interface{}{
+		"url":         sitemapURL,
+		"pages_found": len(urls),
+	})
+
+	if len(urls) == 0 {
+		urls = []string{"https://" + domain}
+	}
+	if len(urls) > maxPages {
+		urls = urls[:maxPages]
+	}
+
+	// Start streaming crawl
+	cfg := s.crawlerCfg
+	cfg.MaxPages = maxPages
+	c := crawler.New(cfg)
+
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+
+	resultCh := c.AnalyzePagesStream(ctx, urls)
+
+	completed := 0
+	total := len(urls)
+
+	// Stream each result as it completes
+	for result := range resultCh {
+		completed++
+
+		// Apply scoring
+		scorer.CalculateScore(&result)
+
+		sendSSE(w, flusher, "result", map[string]interface{}{
+			"completed": completed,
+			"total":     total,
+			"progress":  float64(completed) / float64(total) * 100,
+			"data":      result,
+		})
+	}
+
+	// Send completion event
+	sendSSE(w, flusher, "complete", map[string]interface{}{
+		"completed": completed,
+		"total":     total,
+		"message":   fmt.Sprintf("Analysis complete — %d pages analyzed", completed),
+	})
+}
+
+// sendSSE sends a Server-Sent Event
+func sendSSE(w http.ResponseWriter, flusher http.Flusher, event string, data interface{}) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return
+	}
+
+	fmt.Fprintf(w, "event: %s\n", event)
+	fmt.Fprintf(w, "data: %s\n\n", jsonData)
+	flusher.Flush()
 }

@@ -4,11 +4,9 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/tls"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 	"time"
 )
@@ -24,42 +22,30 @@ func NewFetcher(cfg Config) *Fetcher {
 	transport := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
-		MaxConnsPerHost:     20,
+		MaxConnsPerHost:     50,
 		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
 		DisableCompression:  false,
-		TLSClientConfig:     &tls.Config{InsecureSkipVerify: false},
 		ForceAttemptHTTP2:   true,
+		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
 	}
 
 	return &Fetcher{
-		client:     &http.Client{Transport: transport, Timeout: cfg.RequestTimeout},
+		client: &http.Client{
+			Transport: transport,
+			Timeout:   cfg.RequestTimeout,
+		},
 		config:     cfg,
 		hostDelays: make(map[string]time.Time),
 	}
 }
 
-type FetchResult struct {
-	Content     []byte
-	StatusCode  int
-	Headers     http.Header
-	LoadTimeMs  int64
-	ContentType string
-	Error       error
-}
-
+// Fetch returns *FetchResult (single return value)
 func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
-	result := &FetchResult{}
-
-	// Normalize URL
-	if !strings.HasPrefix(rawURL, "http") {
-		rawURL = "https://" + rawURL
-	}
-
-	// Respect rate limits per host
 	f.waitForHost(rawURL)
 
-	// Retry loop with exponential backoff
+	result := &FetchResult{}
+
 	var lastErr error
 	for attempt := 0; attempt <= f.config.MaxRetries; attempt++ {
 		if attempt > 0 {
@@ -67,7 +53,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
 			select {
 			case <-time.After(backoff):
 			case <-ctx.Done():
-				result.Error = fmt.Errorf("context cancelled")
+				result.Error = ctx.Err()
 				return result
 			}
 		}
@@ -105,17 +91,14 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
 				lastErr = err
 				continue
 			}
+			defer reader.Close()
 		default:
 			reader = resp.Body
 		}
 
 		// Read with 10MB limit
 		body, err := io.ReadAll(io.LimitReader(reader, 10*1024*1024))
-		if reader != resp.Body {
-			reader.Close()
-		}
 		resp.Body.Close()
-
 		if err != nil {
 			lastErr = err
 			continue
@@ -123,10 +106,10 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
 
 		result.Content = body
 		result.Error = nil
-		return result
+		return result // Success
 	}
 
-	result.Error = fmt.Errorf("failed after %d retries: %v", f.config.MaxRetries, lastErr)
+	result.Error = lastErr
 	return result
 }
 

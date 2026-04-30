@@ -915,14 +915,14 @@
 
       const maxPages = document.getElementById('max-pages').value;
 
-      // Reset
+      // Reset UI
       allResults = [];
       currentFilter = 'all';
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.filter-btn')[0].classList.add('active');
       document.getElementById('results-body').innerHTML = '';
       document.getElementById('summary-cards').innerHTML = '';
-      document.getElementById('progress-bar').style.width = '0';
+      document.getElementById('progress-bar').style.width = '0%';
       document.getElementById('stat-total').textContent = '—';
       document.getElementById('stat-done').textContent = '0';
       document.getElementById('stat-sitemap').textContent = '—';
@@ -932,22 +932,29 @@
       document.getElementById('results-section').style.display = 'none';
       document.getElementById('analyse-btn').disabled = true;
       document.getElementById('spinner').style.display = 'block';
-      document.getElementById('progress-title').textContent = 'Fetching sitemap...';
+      document.getElementById('progress-title').textContent = 'Connecting...';
 
-      fetch(`/api/analyse?domain=${encodeURIComponent(domain)}&max_pages=${maxPages}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ domain: domain })
-      })
+      if (pollInterval) {
+        clearInterval(pollInterval);
+      }
+
+      const encodedDomain = encodeURIComponent(domain);
+      fetch(`/api/analyse?domain=${encodedDomain}&max_pages=${maxPages}`)
         .then(r => r.json())
         .then(data => {
+          if (data.error) {
+            throw new Error(data.error);
+          }
           currentJobId = data.job_id;
-          if (pollInterval) clearInterval(pollInterval);
-          pollInterval = setInterval(pollStatus, 1200);
+          pollInterval = setInterval(pollStatus, 1000);
+          pollStatus(); // Call once immediately
         })
-        .catch(e => alert('Error starting analysis: ' + e));
+        .catch(err => {
+          document.getElementById('progress-title').textContent = '⚠ ' + err.message;
+          document.getElementById('spinner').style.display = 'none';
+          document.getElementById('analyse-btn').disabled = false;
+        });
     }
-
     function pollStatus() {
       if (!currentJobId) return;
       fetch(`/api/status?job_id=${encodeURIComponent(currentJobId)}`)
@@ -1650,7 +1657,10 @@
 
       XLSX.writeFile(workbook, `seo_audit_${new Date().toISOString().slice(0, 10)}.xlsx`);
     }
+
   </script>
 </body>
 
 </html>
+
+
