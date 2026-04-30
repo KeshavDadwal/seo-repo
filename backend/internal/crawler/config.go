@@ -19,7 +19,7 @@ func DefaultConfig() Config {
 		RequestTimeout: 15 * time.Second,
 		MaxRetries:     3,
 		RetryDelay:     500 * time.Millisecond,
-		PoliteDelay:    100 * time.Millisecond,
+		PoliteDelay:    500 * time.Millisecond, // Increased to avoid rate limits/500s
 		MaxPages:       50,
 		UserAgent:      "Mozilla/5.0 (compatible; SEOAnalyser/2.0; +https://seoanalyser.io)",
 	}

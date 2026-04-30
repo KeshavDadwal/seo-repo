@@ -12,6 +12,7 @@ import (
 	"seo-crawler/internal/models"
 	"seo-crawler/internal/scorer"
 	"seo-crawler/internal/sitemap"
+	"strings"
 	"sync"
 	"time"
 )
@@ -96,20 +97,38 @@ func (s *Server) handleAnalyse(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) runAnalysis(job *models.Job, maxPages int) {
-	sf := sitemap.NewFetcher()
-	urls, sitemapURL, err := sf.Discover(job.Domain)
-	if err != nil {
-		s.jobsMu.Lock()
-		job.Status = "error"
-		job.Error = err.Error()
-		s.jobsMu.Unlock()
-		return
+	var urls []string
+	var sitemapURL string
+	var err error
+
+	if maxPages == 1 {
+		// Single page mode: skip sitemap discovery and analyze exact URL
+		targetURL := job.Domain
+		if !strings.HasPrefix(targetURL, "http") {
+			targetURL = "https://" + targetURL
+		}
+		urls = []string{targetURL}
+	} else {
+		// Multi-page mode: discover URLs via sitemap
+		sf := sitemap.NewFetcher()
+		urls, sitemapURL, err = sf.Discover(job.Domain)
+		if err != nil {
+			s.jobsMu.Lock()
+			job.Status = "error"
+			job.Error = err.Error()
+			s.jobsMu.Unlock()
+			return
+		}
 	}
 
 	s.jobsMu.Lock()
 	job.SitemapURL = sitemapURL
 	if len(urls) == 0 {
-		urls = []string{"https://" + job.Domain}
+		targetURL := job.Domain
+		if !strings.HasPrefix(targetURL, "http") {
+			targetURL = "https://" + targetURL
+		}
+		urls = []string{targetURL}
 	}
 	if len(urls) > maxPages {
 		urls = urls[:maxPages]

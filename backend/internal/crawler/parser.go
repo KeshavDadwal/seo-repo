@@ -33,6 +33,10 @@ func (p *Parser) Parse(html string, pageURL string, fetchResult *FetchResult) *m
 	if fetchResult.Headers != nil {
 		r.XFrameOptions = fetchResult.Headers.Get("X-Frame-Options")
 		r.ContentSecurity = fetchResult.Headers.Get("Content-Security-Policy")
+		r.StrictTransportSecurity = fetchResult.Headers.Get("Strict-Transport-Security")
+		r.XContentTypeOptions = fetchResult.Headers.Get("X-Content-Type-Options")
+		r.ReferrerPolicy = fetchResult.Headers.Get("Referrer-Policy")
+		r.PermissionsPolicy = fetchResult.Headers.Get("Permissions-Policy")
 	}
 
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
@@ -54,7 +58,11 @@ func (p *Parser) Parse(html string, pageURL string, fetchResult *FetchResult) *m
 }
 
 func (p *Parser) parseTitle(doc *goquery.Document, r *models.SEOResult) {
-	r.Title = strings.TrimSpace(doc.Find("title").First().Text())
+	titleText := doc.Find("head title").First().Text()
+	if titleText == "" {
+		titleText = doc.Find("title").First().Text()
+	}
+	r.Title = strings.Join(strings.Fields(titleText), " ")
 	r.TitleLength = len([]rune(r.Title))
 }
 
@@ -107,7 +115,7 @@ func (p *Parser) parseHeadings(doc *goquery.Document, r *models.SEOResult) {
 		tag := fmt.Sprintf("h%d", i)
 		var headings []string
 		doc.Find(tag).Each(func(idx int, s *goquery.Selection) {
-			text := strings.TrimSpace(s.Text())
+			text := strings.Join(strings.Fields(s.Text()), " ")
 			if text != "" {
 				headings = append(headings, text)
 			}

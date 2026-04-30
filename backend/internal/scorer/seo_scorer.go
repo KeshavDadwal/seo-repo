@@ -225,6 +225,34 @@ func CalculateScore(r *models.SEOResult) {
 		r.Passed = append(r.Passed, models.CheckResult{Msg: "Robots meta tag present and allows indexing"})
 	}
 
+	// Security Headers (Bonus & Warnings)
+	if r.StrictTransportSecurity != "" {
+		r.Passed = append(r.Passed, models.CheckResult{Msg: "Strict-Transport-Security (HSTS) header is present", Points: 1})
+		score += 1
+	} else if r.HasHTTPS {
+		r.Warnings = append(r.Warnings, models.CheckResult{Msg: "Missing Strict-Transport-Security (HSTS) header on HTTPS site"})
+	}
+
+	if r.ContentSecurity != "" {
+		r.Passed = append(r.Passed, models.CheckResult{Msg: "Content-Security-Policy (CSP) header is present", Points: 1})
+		score += 1
+	} else {
+		r.Warnings = append(r.Warnings, models.CheckResult{Msg: "Missing Content-Security-Policy (CSP) header"})
+	}
+
+	if r.XFrameOptions != "" {
+		r.Passed = append(r.Passed, models.CheckResult{Msg: "X-Frame-Options header is present (prevents clickjacking)", Points: 1})
+		score += 1
+	} else {
+		r.Warnings = append(r.Warnings, models.CheckResult{Msg: "Missing X-Frame-Options header"})
+	}
+
+	if r.XContentTypeOptions != "" {
+		r.Passed = append(r.Passed, models.CheckResult{Msg: "X-Content-Type-Options header is present (prevents MIME-sniffing)"})
+	} else {
+		r.Warnings = append(r.Warnings, models.CheckResult{Msg: "Missing X-Content-Type-Options header"})
+	}
+
 	if score > 100 {
 		score = 100
 	}

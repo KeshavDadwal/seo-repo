@@ -1,11 +1,11 @@
 package crawler
 
 import (
-	"compress/gzip"
 	"context"
 	"crypto/tls"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"sync"
 	"time"
@@ -26,14 +26,17 @@ func NewFetcher(cfg Config) *Fetcher {
 		IdleConnTimeout:     90 * time.Second,
 		TLSHandshakeTimeout: 10 * time.Second,
 		DisableCompression:  false,
-		ForceAttemptHTTP2:   true,
+		ForceAttemptHTTP2:   false, // Disabled to bypass HTTP/2 WAF fingerprinting
 		TLSClientConfig:     &tls.Config{MinVersion: tls.VersionTLS12},
 	}
+
+	jar, _ := cookiejar.New(nil)
 
 	return &Fetcher{
 		client: &http.Client{
 			Transport: transport,
 			Timeout:   cfg.RequestTimeout,
+			Jar:       jar, // Maintain cookies across requests
 		},
 		config:     cfg,
 		hostDelays: make(map[string]time.Time),
@@ -67,7 +70,7 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
 		req.Header.Set("User-Agent", f.config.UserAgent)
 		req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 		req.Header.Set("Accept-Language", "en-US,en;q=0.5")
-		req.Header.Set("Accept-Encoding", "gzip")
+		req.Header.Set("Connection", "keep-alive")
 
 		start := time.Now()
 		resp, err := f.client.Do(req)
@@ -81,23 +84,8 @@ func (f *Fetcher) Fetch(ctx context.Context, rawURL string) *FetchResult {
 		result.Headers = resp.Header
 		result.ContentType = resp.Header.Get("Content-Type")
 
-		// Handle gzip
-		var reader io.ReadCloser
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			reader, err = gzip.NewReader(resp.Body)
-			if err != nil {
-				resp.Body.Close()
-				lastErr = err
-				continue
-			}
-			defer reader.Close()
-		default:
-			reader = resp.Body
-		}
-
 		// Read with 10MB limit
-		body, err := io.ReadAll(io.LimitReader(reader, 10*1024*1024))
+		body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 		resp.Body.Close()
 		if err != nil {
 			lastErr = err

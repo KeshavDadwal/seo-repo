@@ -26,8 +26,12 @@ type SEOResult struct {
 	SchemaTypes           []string            `json:"schema_types"`
 	HasHTTPS              bool                `json:"has_https"`
 	ContentType           string              `json:"content_type"`
-	XFrameOptions         string              `json:"x_frame_options"`
-	ContentSecurity       string              `json:"content_security"`
+	XFrameOptions           string              `json:"x_frame_options"`
+	ContentSecurity         string              `json:"content_security"`
+	StrictTransportSecurity string              `json:"strict_transport_security"`
+	XContentTypeOptions     string              `json:"x_content_type_options"`
+	ReferrerPolicy          string              `json:"referrer_policy"`
+	PermissionsPolicy       string              `json:"permissions_policy"`
 	Issues                []CheckResult       `json:"issues"`
 	Warnings              []CheckResult       `json:"warnings"`
 	Passed                []CheckResult       `json:"passed"`

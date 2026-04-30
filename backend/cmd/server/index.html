@@ -810,6 +810,7 @@
       <input type="text" id="domain-input" class="search-input" placeholder="example.com or https://example.com"
         value="">
       <select id="max-pages" class="pages-select">
+        <option value="1">1 page (Exact URL)</option>
         <option value="10">10 pages</option>
         <option value="25">25 pages</option>
         <option value="50" selected>50 pages</option>
@@ -1309,6 +1310,19 @@
           <div class="detail-block">
             <div class="detail-block-hdr">🔗 Links (${r.link_stats?.total || 0} total)</div>
             <div class="detail-block-body">${linksHtml}</div>
+          </div>
+
+          <!-- Security Headers -->
+          <div class="detail-block">
+            <div class="detail-block-hdr">🔒 Security Headers</div>
+            <div class="detail-block-body">
+              <div class="detail-row-item"><span class="dri-label">HSTS</span><span class="dri-val" style="color:${r.strict_transport_security ? 'var(--green)' : 'var(--red)'}">${r.strict_transport_security ? '✓ Present' : '✗ Missing'}</span></div>
+              <div class="detail-row-item"><span class="dri-label">CSP</span><span class="dri-val" style="color:${r.content_security ? 'var(--green)' : 'var(--yellow)'}">${r.content_security ? '✓ Present' : '⚠ Missing'}</span></div>
+              <div class="detail-row-item"><span class="dri-label">X-Frame-Options</span><span class="dri-val" style="color:${r.x_frame_options ? 'var(--green)' : 'var(--yellow)'}">${r.x_frame_options ? '✓ ' + escHtml(r.x_frame_options) : '⚠ Missing'}</span></div>
+              <div class="detail-row-item"><span class="dri-label">X-Content-Type</span><span class="dri-val" style="color:${r.x_content_type_options ? 'var(--green)' : 'var(--yellow)'}">${r.x_content_type_options ? '✓ ' + escHtml(r.x_content_type_options) : '⚠ Missing'}</span></div>
+              <div class="detail-row-item"><span class="dri-label">Referrer-Policy</span><span class="dri-val" style="color:${r.referrer_policy ? 'var(--green)' : 'var(--muted)'}">${r.referrer_policy ? '✓ ' + escHtml(r.referrer_policy) : 'Not set'}</span></div>
+              <div class="detail-row-item"><span class="dri-label">Permissions-Policy</span><span class="dri-val" style="color:${r.permissions_policy ? 'var(--green)' : 'var(--muted)'}">${r.permissions_policy ? '✓ Present' : 'Not set'}</span></div>
+            </div>
           </div>
 
         </div>
